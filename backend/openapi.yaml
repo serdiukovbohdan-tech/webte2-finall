@@ -1,0 +1,494 @@
+openapi: 3.0.3
+info:
+  title: WEBTE2 API
+  version: 1.0.0
+  description: REST API for Octave sessions, simulations, logs, statistics, and API documentation export.
+servers:
+  - url: http://localhost:3000
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API_KEY
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    SessionResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+      required:
+        - sessionId
+    ComputeRequest:
+      type: object
+      properties:
+        command:
+          type: string
+          example: a = 1+1
+        sessionId:
+          type: string
+          format: uuid
+      required:
+        - command
+        - sessionId
+    ComputeResponse:
+      type: object
+      properties:
+        result:
+          type: string
+        sessionId:
+          type: string
+          format: uuid
+        error:
+          type: string
+          nullable: true
+      required:
+        - result
+        - sessionId
+        - error
+    PendulumRequest:
+      type: object
+      properties:
+        M:
+          type: number
+          default: 0.5
+        m:
+          type: number
+          default: 0.2
+        b:
+          type: number
+          default: 0.1
+        I:
+          type: number
+          default: 0.006
+        g:
+          type: number
+          default: 9.8
+        l:
+          type: number
+          default: 0.3
+        r:
+          type: number
+          default: 0.2
+        initPozicia:
+          type: number
+          default: 0
+        initUhol:
+          type: number
+          default: 0
+    PendulumResponse:
+      type: object
+      properties:
+        time:
+          type: array
+          items:
+            type: number
+        position:
+          type: array
+          items:
+            type: number
+        angle:
+          type: array
+          items:
+            type: number
+      required:
+        - time
+        - position
+        - angle
+    BallBeamRequest:
+      type: object
+      properties:
+        m:
+          type: number
+          default: 0.111
+        R:
+          type: number
+          default: 0.015
+        g:
+          type: number
+          default: -9.8
+        J:
+          type: number
+          default: 9.99e-6
+        r:
+          type: number
+          default: 0.25
+        initRychlost:
+          type: number
+          default: 0
+        initZrychlenie:
+          type: number
+          default: 0
+    BallBeamResponse:
+      type: object
+      properties:
+        time:
+          type: array
+          items:
+            type: number
+        position:
+          type: array
+          items:
+            type: number
+        beamAngle:
+          type: array
+          items:
+            type: number
+      required:
+        - time
+        - position
+        - beamAngle
+    LogItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        session_id:
+          type: string
+          format: uuid
+        command:
+          type: string
+        output:
+          type: string
+        is_error:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - session_id
+        - command
+        - output
+        - is_error
+        - created_at
+    LogsResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LogItem'
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+      required:
+        - logs
+        - total
+        - page
+        - limit
+    StatsTrackRequest:
+      type: object
+      properties:
+        animationType:
+          type: string
+          enum:
+            - pendulum
+            - ballbeam
+      required:
+        - animationType
+    StatsTrackResponse:
+      type: object
+      properties:
+        tracked:
+          type: boolean
+        reason:
+          type: string
+          nullable: true
+      required:
+        - tracked
+    StatsSummary:
+      type: object
+      properties:
+        pendulum:
+          type: integer
+        ballbeam:
+          type: integer
+      required:
+        - pendulum
+        - ballbeam
+    StatsDetailItem:
+      type: object
+      properties:
+        animation_type:
+          type: string
+          enum:
+            - pendulum
+            - ballbeam
+        user_token:
+          type: string
+          format: uuid
+        city:
+          type: string
+        country:
+          type: string
+        used_at:
+          type: string
+          format: date-time
+      required:
+        - animation_type
+        - user_token
+        - city
+        - country
+        - used_at
+security:
+  - bearerAuth: []
+paths:
+  /api/session/new:
+    post:
+      summary: Create a new Octave session
+      responses:
+        '200':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/compute:
+    post:
+      summary: Run an Octave command inside an existing session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComputeRequest'
+      responses:
+        '200':
+          description: Command executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComputeResponse'
+        '400':
+          description: Missing sessionId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/simulation/pendulum:
+    post:
+      summary: Run inverted pendulum simulation
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PendulumRequest'
+      responses:
+        '200':
+          description: Simulation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendulumResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Simulation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/simulation/ballbeam:
+    post:
+      summary: Run ball and beam simulation
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BallBeamRequest'
+      responses:
+        '200':
+          description: Simulation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BallBeamResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Simulation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/logs:
+    get:
+      summary: Get paginated logs
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Paginated log entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/logs/export:
+    get:
+      summary: Export all logs as CSV
+      responses:
+        '200':
+          description: CSV download
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/stats/track:
+    post:
+      summary: Track animation usage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatsTrackRequest'
+      responses:
+        '200':
+          description: Tracking result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsTrackResponse'
+        '400':
+          description: Invalid animation type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Tracking failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/stats:
+    get:
+      summary: Get animation usage totals
+      responses:
+        '200':
+          description: Usage counters by animation type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsSummary'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to load stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/stats/details:
+    get:
+      summary: Get detailed animation usage entries
+      responses:
+        '200':
+          description: Detailed usage list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StatsDetailItem'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to load stats details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/docs:
+    get:
+      summary: View interactive Swagger UI
+      security: []
+      responses:
+        '200':
+          description: Swagger UI page
+          content:
+            text/html:
+              schema:
+                type: string
+  /api/docs/pdf:
+    get:
+      summary: Download API documentation as PDF
+      security: []
+      responses:
+        '200':
+          description: PDF download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary

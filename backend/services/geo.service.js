@@ -1,36 +1,54 @@
-function normalizeCoordinates(coordinates) {
-  const { lat, lng } = coordinates;
+const axios = require('axios');
 
-  if (![lat, lng].every((value) => typeof value === 'number' && Number.isFinite(value))) {
-    throw new Error('Coordinates must include numeric lat and lng values.');
+async function getLocation(ip) {
+  const normalizedIp = normalizeIp(ip);
+
+  if (isLocalhostIp(normalizedIp)) {
+    return {
+      city: 'Local',
+      country: 'Local'
+    };
+  }
+
+  try {
+    const response = await axios.get(
+      `http://ip-api.com/json/${encodeURIComponent(normalizedIp)}`,
+      {
+        params: {
+          fields: 'status,message,city,country'
+        },
+        timeout: 5000
+      }
+    );
+
+    if (response.data && response.data.status === 'success') {
+      return {
+        city: response.data.city || 'Unknown',
+        country: response.data.country || 'Unknown'
+      };
+    }
+  } catch (error) {
+    console.error('Geo lookup failed:', error.message);
   }
 
   return {
-    lat: Number(lat.toFixed(6)),
-    lng: Number(lng.toFixed(6))
+    city: 'Unknown',
+    country: 'Unknown'
   };
 }
 
-function calculateDistanceKm(pointA, pointB) {
-  const earthRadiusKm = 6371;
-  const dLat = toRadians(pointB.lat - pointA.lat);
-  const dLng = toRadians(pointB.lng - pointA.lng);
-  const lat1 = toRadians(pointA.lat);
-  const lat2 = toRadians(pointB.lat);
+function normalizeIp(ip) {
+  if (!ip) {
+    return '127.0.0.1';
+  }
 
-  const haversine =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(lat1) * Math.cos(lat2);
-
-  const arc = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
-  return Number((earthRadiusKm * arc).toFixed(3));
+  return String(ip).replace(/^::ffff:/, '');
 }
 
-function toRadians(value) {
-  return (value * Math.PI) / 180;
+function isLocalhostIp(ip) {
+  return ip === '127.0.0.1' || ip === '::1';
 }
 
 module.exports = {
-  calculateDistanceKm,
-  normalizeCoordinates
+  getLocation
 };

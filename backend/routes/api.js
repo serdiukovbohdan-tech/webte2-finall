@@ -1,11 +1,16 @@
 const express = require('express');
 
+const docsRouter = require('./docs');
 const auth = require('../middleware/auth');
 const { query } = require('../db/db');
 const { createSession, runCommand } = require('../services/octave.service');
+const logsRouter = require('./logs');
+const simulationRouter = require('./simulation');
+const statsRouter = require('./stats');
 
 const router = express.Router();
 
+router.use('/docs', docsRouter);
 router.use(auth);
 
 router.post('/session/new', async (req, res, next) => {
@@ -58,5 +63,9 @@ router.post('/compute', async (req, res, next) => {
     return next(error);
   }
 });
+
+router.use('/logs', logsRouter);
+router.use('/simulation', simulationRouter);
+router.use('/stats', statsRouter);
 
 module.exports = router;
