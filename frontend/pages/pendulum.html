@@ -43,7 +43,7 @@
     <script src="../js/api.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
   </head>
-  <body>
+  <body data-page-title="nav.pendulum">
     <div class="page-shell">
       <div data-navbar></div>
 
@@ -193,22 +193,6 @@
             r2: parseNumber(form.r2.value),
             initPozicia: parseNumber(form.initPozicia.value),
             initUhol: parseNumber(form.initUhol.value)
-          };
-        }
-
-        function combineRuns(run1, run2) {
-          var time1 = Array.isArray(run1.time) ? run1.time : [];
-          var position1 = Array.isArray(run1.position) ? run1.position : [];
-          var angle1 = Array.isArray(run1.angle) ? run1.angle : [];
-          var time2 = Array.isArray(run2.time) ? run2.time : [];
-          var position2 = Array.isArray(run2.position) ? run2.position : [];
-          var angle2 = Array.isArray(run2.angle) ? run2.angle : [];
-          var offset = time1.length ? time1[time1.length - 1] : 0;
-
-          return {
-            time: time1.concat(time2.slice(1).map(function (value) { return value + offset; })),
-            position: position1.concat(position2.slice(1)),
-            angle: angle1.concat(angle2.slice(1))
           };
         }
 
@@ -489,9 +473,9 @@
           }
 
           try {
-            window.api.trackAnimation("pendulum");
+            await window.api.trackAnimation("pendulum");
 
-            var run1 = await window.api.runPendulum({
+            simulationData = await window.api.runPendulum({
               M: params.M,
               m: params.m,
               b: params.b,
@@ -499,23 +483,10 @@
               g: params.g,
               l: params.l,
               r: params.r,
+              r2: params.r2,
               initPozicia: params.initPozicia,
               initUhol: params.initUhol
             });
-
-            var run2 = await window.api.runPendulum({
-              M: params.M,
-              m: params.m,
-              b: params.b,
-              I: params.I,
-              g: params.g,
-              l: params.l,
-              r: params.r2,
-              initPozicia: getLastValue(run1.position, params.initPozicia),
-              initUhol: getLastValue(run1.angle, params.initUhol)
-            });
-
-            simulationData = combineRuns(run1, run2);
 
             if (!simulationData.time.length) {
               throw new Error(getTranslation("general.error", "Error"));

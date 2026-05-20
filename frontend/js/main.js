@@ -1,6 +1,11 @@
 (function () {
   var DEFAULT_LANGUAGE = "sk";
   var LANGUAGE_KEY = "language";
+  var PAGE_LOADER_ID = "page-loader";
+
+  function getTranslation(key, fallback) {
+    return typeof window.t === "function" ? window.t(key) : fallback;
+  }
 
   function getPageDepth() {
     return window.location.pathname.indexOf("/pages/") !== -1 ? ".." : ".";
@@ -22,6 +27,49 @@
       { href: basePath + "/pages/stats.html", key: "nav.statistics", match: ["stats.html"] },
       { href: basePath + "/pages/docs.html", key: "nav.documentation", match: ["docs.html"] }
     ];
+  }
+
+  function ensurePageLoader() {
+    if (!document.body || document.getElementById(PAGE_LOADER_ID)) {
+      return;
+    }
+
+    var loader = document.createElement("div");
+    loader.id = PAGE_LOADER_ID;
+    loader.className = "page-loader";
+    loader.innerHTML =
+      '<div class="page-loader__panel">' +
+      '  <div class="page-loader__brand">WEBTE2</div>' +
+      '  <div class="loading-state"><span class="spinner" aria-hidden="true"></span><span class="page-loader__text"></span></div>' +
+      "</div>";
+    document.body.appendChild(loader);
+    document.body.classList.add("page-loading");
+    updatePageLoaderText();
+  }
+
+  function updatePageLoaderText() {
+    var label = document.querySelector(".page-loader__text");
+
+    if (label) {
+      label.textContent = getTranslation("general.loadingScreen", "Preparing interface...");
+    }
+  }
+
+  function hidePageLoader() {
+    var loader = document.getElementById(PAGE_LOADER_ID);
+
+    if (!loader) {
+      return;
+    }
+
+    loader.classList.add("is-hidden");
+    document.body.classList.remove("page-loading");
+
+    window.setTimeout(function () {
+      if (loader.parentNode) {
+        loader.parentNode.removeChild(loader);
+      }
+    }, 320);
   }
 
   function createNavbarMarkup() {
@@ -47,15 +95,15 @@
 
     return (
       '<header class="site-header">' +
-      '  <nav class="navbar" aria-label="Main navigation">' +
+      '  <nav class="navbar" data-i18n-attr="aria-label:nav.main" aria-label="Main navigation">' +
       '    <a class="navbar__brand" href="' +
       basePath +
       '/index.html">' +
       '      <span class="navbar__badge">W</span>' +
       "      <span>WEBTE2</span>" +
       "    </a>" +
-      '    <button class="navbar__toggle" type="button" aria-expanded="false" aria-controls="navbar-menu">' +
-      '      <span class="sr-only">Toggle navigation</span>' +
+      '    <button class="navbar__toggle" type="button" aria-expanded="false" aria-controls="navbar-menu" data-i18n-attr="aria-label:nav.toggle" aria-label="Toggle navigation">' +
+      '      <span class="sr-only" data-i18n="nav.toggle">Toggle navigation</span>' +
       '      <span class="navbar__toggle-line"></span>' +
       '      <span class="navbar__toggle-line"></span>' +
       '      <span class="navbar__toggle-line"></span>' +
@@ -196,9 +244,10 @@
     toast.setAttribute("role", "alert");
     toast.innerHTML =
       '<span class="toast__message"></span>' +
-      '<button class="toast__close" type="button" aria-label="Close">&times;</button>';
+      '<button class="toast__close" type="button">&times;</button>';
 
     toast.querySelector(".toast__message").textContent = message;
+    toast.querySelector(".toast__close").setAttribute("aria-label", getTranslation("general.close", "Close"));
     stack.appendChild(toast);
 
     requestAnimationFrame(function () {
@@ -228,16 +277,20 @@
 
   document.addEventListener("languageChanged", function (event) {
     syncLanguageButtons(event.detail.language);
+    updatePageLoaderText();
   });
 
   document.addEventListener("DOMContentLoaded", function () {
     initNavbar();
-
-    if (typeof window.setLanguage === "function") {
-      window.setLanguage(getStoredLanguage());
-    } else {
-      syncLanguageButtons(getStoredLanguage());
+    if (typeof window.applyTranslations === "function") {
+      window.applyTranslations();
     }
+    syncLanguageButtons(getStoredLanguage());
+  });
+
+  ensurePageLoader();
+  window.addEventListener("load", function () {
+    window.setTimeout(hidePageLoader, 320);
   });
 
   window.initNavbar = initNavbar;

@@ -8,6 +8,7 @@ const PENDULUM_DEFAULTS = {
   g: 9.8,
   l: 0.3,
   r: 0.2,
+  r2: 0.5,
   initPozicia: 0,
   initUhol: 0
 };
@@ -18,6 +19,7 @@ const BALL_BEAM_DEFAULTS = {
   g: -9.8,
   J: 9.99e-6,
   r: 0.25,
+  r2: 0.5,
   initRychlost: 0,
   initZrychlenie: 0
 };
@@ -85,7 +87,7 @@ function buildPendulumScript(params) {
     'sys = ss(Ac, B * N, C, D);',
     't = 0:0.05:10;',
     `r = ${toOctaveNumber(params.r)};`,
-    'r2 = 0.5;',
+    `r2 = ${toOctaveNumber(params.r2)};`,
     `initPozicia = ${toOctaveNumber(params.initPozicia)};`,
     `initUhol = ${toOctaveNumber(params.initUhol)};`,
     '[y1, t1, x1] = lsim(sys, r * ones(size(t)), t, [initPozicia; 0; initUhol; 0]);',
@@ -118,7 +120,7 @@ function buildBallBeamScript(params) {
     'sys = ss(A - B * K, B, C, D);',
     't = 0:0.01:5;',
     `r = ${toOctaveNumber(params.r)};`,
-    'r2 = 0.5;',
+    `r2 = ${toOctaveNumber(params.r2)};`,
     `initRychlost = ${toOctaveNumber(params.initRychlost)};`,
     `initZrychlenie = ${toOctaveNumber(params.initZrychlenie)};`,
     '[y1, t1, x1] = lsim(N * sys, r * ones(size(t)), t, [initRychlost; 0; initZrychlenie; 0]);',

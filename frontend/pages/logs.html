@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="sk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WEBTE2 | Logs</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <style>
+      .logs-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+      }
+
+      .logs-table {
+        min-width: 820px;
+      }
+
+      .logs-table th:first-child,
+      .logs-table td:first-child {
+        width: 72px;
+      }
+
+      .logs-table td {
+        vertical-align: top;
+      }
+
+      .logs-cell-truncate {
+        display: inline-block;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .pagination {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+
+      .pagination__controls,
+      .pagination__numbers {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .pagination__info {
+        color: var(--color-text-muted);
+        font-weight: 600;
+      }
+
+      .page-btn {
+        min-width: 42px;
+        min-height: 42px;
+        padding: 0.65rem 0.85rem;
+        border-radius: 999px;
+        border: 1px solid var(--color-border);
+        background: #ffffff;
+        color: var(--color-primary);
+        font-weight: 700;
+        transition:
+          background-color var(--transition),
+          border-color var(--transition),
+          color var(--transition);
+      }
+
+      .page-btn:hover:not(:disabled),
+      .page-btn.is-active {
+        background: var(--color-primary);
+        border-color: var(--color-primary);
+        color: #ffffff;
+      }
+
+      .page-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+    </style>
+    <script src="../js/i18n.js" defer></script>
+    <script src="../js/main.js" defer></script>
+    <script src="../js/api.js" defer></script>
+  </head>
+  <body data-page-title="nav.logs">
+    <div class="page-shell">
+      <div data-navbar></div>
+
+      <main class="page-container">
+        <section class="card">
+          <div class="logs-header">
+            <h1 class="section-title" style="margin: 0;" data-i18n="logs.title">Request Logs</h1>
+            <button id="export-button" class="btn-primary" type="button" data-i18n="logs.exportCsv">
+              Export CSV
+            </button>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="logs-table">
+              <thead>
+                <tr>
+                  <th data-i18n="logs.rowNumber">#</th>
+                  <th data-i18n="logs.dateTime">Date/Time</th>
+                  <th data-i18n="logs.command">Command</th>
+                  <th data-i18n="logs.output">Output</th>
+                  <th data-i18n="logs.status">Status</th>
+                </tr>
+              </thead>
+              <tbody id="logs-table-body">
+                <tr>
+                  <td colspan="5" class="muted" data-i18n="general.loading">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="pagination">
+            <div class="pagination__controls">
+              <button id="prev-button" class="btn-secondary" type="button" data-i18n="pagination.previous">
+                Previous
+              </button>
+              <span id="page-info" class="pagination__info" data-i18n="general.loading">Loading...</span>
+              <button id="next-button" class="btn-secondary" type="button" data-i18n="pagination.next">
+                Next
+              </button>
+            </div>
+
+            <div id="page-numbers" class="pagination__numbers"></div>
+          </div>
+        </section>
+
+        <div id="global-loading" aria-live="polite"></div>
+      </main>
+    </div>
+
+    <script>
+      (function () {
+        var state = {
+          currentPage: 1,
+          limit: 20,
+          total: 0,
+          totalPages: 1,
+          logs: []
+        };
+
+        function getTranslation(key, fallback) {
+          return typeof window.t === "function" ? window.t(key) : fallback;
+        }
+
+        function truncateText(value, maxLength) {
+          var text = value == null ? "" : String(value);
+          return text.length > maxLength ? text.slice(0, maxLength - 3) + "..." : text;
+        }
+
+        function getStatusText(statusValue) {
+          var normalized = String(statusValue || "").toLowerCase();
+          var isError =
+            statusValue === true ||
+            statusValue === 1 ||
+            normalized === "true" ||
+            normalized === "1" ||
+            normalized === "error" ||
+            normalized === "failed" ||
+            normalized === "fail";
+
+          return {
+            isError: isError,
+            text: isError
+              ? "\u2717 " + getTranslation("logs.error", "Error")
+              : "\u2713 " + getTranslation("logs.ok", "OK")
+          };
+        }
+
+        function formatDate(value) {
+          if (!value) {
+            return "-";
+          }
+
+          var parsed = new Date(value);
+          return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+        }
+
+        function resolveLogField(log, keys, fallback) {
+          for (var index = 0; index < keys.length; index += 1) {
+            if (log[keys[index]] !== undefined && log[keys[index]] !== null) {
+              return log[keys[index]];
+            }
+          }
+
+          return fallback;
+        }
+
+        function renderCellText(value) {
+          var fullText = value == null ? "" : String(value);
+          var shortText = truncateText(fullText, 50);
+          return '<span class="logs-cell-truncate" title="' + escapeHtml(fullText) + '">' + escapeHtml(shortText) + "</span>";
+        }
+
+        function escapeHtml(value) {
+          return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+        }
+
+        function renderRows(logs) {
+          var tbody = document.getElementById("logs-table-body");
+
+          if (!logs.length) {
+            tbody.innerHTML =
+              '<tr><td colspan="5" class="muted">' + getTranslation("logs.noData", "No logs available") + "</td></tr>";
+            return;
+          }
+
+          tbody.innerHTML = logs
+            .map(function (log, index) {
+              var rowNumber = (state.currentPage - 1) * state.limit + index + 1;
+              var dateValue = resolveLogField(log, ["dateTime", "date", "timestamp", "createdAt", "created_at"], "-");
+              var commandValue = resolveLogField(log, ["command", "request", "input"], "");
+              var outputValue = resolveLogField(log, ["output", "result", "response"], "");
+              var statusValue = resolveLogField(log, ["status", "state", "resultStatus", "is_error"], false);
+              var statusInfo = getStatusText(statusValue);
+
+              return (
+                "<tr>" +
+                "<td>" + rowNumber + "</td>" +
+                "<td>" + escapeHtml(formatDate(dateValue)) + "</td>" +
+                "<td>" + renderCellText(commandValue) + "</td>" +
+                "<td>" + renderCellText(outputValue) + "</td>" +
+                '<td class="' + (statusInfo.isError ? "status-error" : "status-success") + '">' +
+                escapeHtml(statusInfo.text) +
+                "</td>" +
+                "</tr>"
+              );
+            })
+            .join("");
+        }
+
+        function renderPageInfo() {
+          document.getElementById("page-info").textContent =
+            getTranslation("pagination.page", "Page") +
+            " " +
+            state.currentPage +
+            " " +
+            getTranslation("pagination.of", "of") +
+            " " +
+            state.totalPages;
+        }
+
+        function renderPageNumbers() {
+          var container = document.getElementById("page-numbers");
+          var buttons = [];
+
+          for (var page = 1; page <= state.totalPages; page += 1) {
+            buttons.push(
+              '<button class="page-btn' +
+                (page === state.currentPage ? " is-active" : "") +
+                '" type="button" data-page="' +
+                page +
+                '">' +
+                page +
+                "</button>"
+            );
+          }
+
+          container.innerHTML = buttons.join("");
+
+          container.querySelectorAll("[data-page]").forEach(function (button) {
+            button.addEventListener("click", function () {
+              loadLogs(Number(button.getAttribute("data-page")));
+            });
+          });
+        }
+
+        function updatePaginationButtons() {
+          document.getElementById("prev-button").disabled = state.currentPage <= 1;
+          document.getElementById("next-button").disabled = state.currentPage >= state.totalPages;
+        }
+
+        async function loadLogs(page) {
+          if (typeof window.showLoading === "function") {
+            window.showLoading("global-loading");
+          }
+
+          try {
+            var response = await window.api.getLogs(page, state.limit);
+            state.currentPage = Number(response.page || page);
+            state.limit = Number(response.limit || state.limit);
+            state.total = Number(response.total || 0);
+            state.totalPages = Math.max(1, Math.ceil(state.total / state.limit));
+            state.logs = response.logs || [];
+
+            renderRows(state.logs);
+            renderPageInfo();
+            renderPageNumbers();
+            updatePaginationButtons();
+          } finally {
+            if (typeof window.hideLoading === "function") {
+              window.hideLoading("global-loading");
+            }
+          }
+        }
+
+        function bindEvents() {
+          document.getElementById("prev-button").addEventListener("click", function () {
+            if (state.currentPage > 1) {
+              loadLogs(state.currentPage - 1);
+            }
+          });
+
+          document.getElementById("next-button").addEventListener("click", function () {
+            if (state.currentPage < state.totalPages) {
+              loadLogs(state.currentPage + 1);
+            }
+          });
+
+          document.getElementById("export-button").addEventListener("click", function () {
+            window.api.exportLogs();
+          });
+        }
+
+        document.addEventListener("languageChanged", function () {
+          renderRows(state.logs);
+          renderPageInfo();
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+          bindEvents();
+          loadLogs(1);
+        });
+      })();
+    </script>
+  </body>
+</html>

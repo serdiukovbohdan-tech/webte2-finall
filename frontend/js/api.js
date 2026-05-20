@@ -3,6 +3,10 @@
   var API_KEY = "secret123";
   var DEFAULT_LOADING_TARGET = "global-loading";
 
+  function getMessage(key, fallback) {
+    return typeof window.t === "function" ? window.t(key) : fallback;
+  }
+
   function getAuthHeaders(includeJson) {
     var headers = {
       Authorization: "Bearer " + API_KEY
@@ -50,7 +54,7 @@
           ? payload.error
           : typeof payload === "string" && payload
             ? payload
-            : "Request failed with status " + response.status;
+            : getMessage("api.requestFailedStatus", "Request failed with status") + " " + response.status;
 
       throw new Error(errorMessage);
     }
@@ -81,7 +85,7 @@
 
       return data.sessionId || data.id || null;
     } catch (error) {
-      notifyError(error.message || "Failed to create session.");
+      notifyError(error.message || getMessage("api.createSessionError", "Failed to create session."));
       return null;
     }
   }
@@ -105,10 +109,10 @@
         error: data.error || null
       };
     } catch (error) {
-      notifyError(error.message || "Compute request failed.");
+      notifyError(error.message || getMessage("api.computeError", "Compute request failed."));
       return {
         result: "",
-        error: error.message || "Compute request failed."
+        error: error.message || getMessage("api.computeError", "Compute request failed.")
       };
     }
   }
@@ -128,6 +132,7 @@
             g: params.g,
             l: params.l,
             r: params.r,
+            r2: params.r2,
             initPozicia: params.initPozicia,
             initUhol: params.initUhol
           })
@@ -140,7 +145,7 @@
         angle: data.angle || []
       };
     } catch (error) {
-      notifyError(error.message || "Pendulum simulation failed.");
+      notifyError(error.message || getMessage("api.pendulumError", "Pendulum simulation failed."));
       return {
         time: [],
         position: [],
@@ -162,6 +167,7 @@
             g: params.g,
             J: params.J,
             r: params.r,
+            r2: params.r2,
             initRychlost: params.initRychlost,
             initZrychlenie: params.initZrychlenie
           })
@@ -174,7 +180,7 @@
         beamAngle: data.beamAngle || []
       };
     } catch (error) {
-      notifyError(error.message || "Ball-beam simulation failed.");
+      notifyError(error.message || getMessage("api.ballbeamError", "Ball-Beam simulation failed."));
       return {
         time: [],
         position: [],
@@ -205,7 +211,7 @@
         limit: data.limit || limit || 10
       };
     } catch (error) {
-      notifyError(error.message || "Failed to load logs.");
+      notifyError(error.message || getMessage("api.logsError", "Failed to load logs."));
       return {
         logs: [],
         total: 0,
@@ -231,7 +237,7 @@
       });
 
       if (!response.ok) {
-        throw new Error("Failed to export logs.");
+        throw new Error(getMessage("api.exportError", "Failed to export logs."));
       }
 
       var blob = await response.blob();
@@ -246,10 +252,10 @@
       window.URL.revokeObjectURL(downloadUrl);
 
       if (typeof window.showSuccess === "function") {
-        window.showSuccess("CSV export started.");
+        window.showSuccess(getMessage("api.exportStarted", "CSV download started."));
       }
     } catch (error) {
-      notifyError(error.message || "Failed to export logs.");
+      notifyError(error.message || getMessage("api.exportError", "Failed to export logs."));
     } finally {
       setLoadingState(false);
     }
@@ -270,7 +276,7 @@
 
       return true;
     } catch (error) {
-      notifyError(error.message || "Failed to track animation.");
+      notifyError(error.message || getMessage("api.trackError", "Failed to track animation."));
       return false;
     }
   }
@@ -290,7 +296,7 @@
         ballbeam: data.ballbeam || 0
       };
     } catch (error) {
-      notifyError(error.message || "Failed to load statistics.");
+      notifyError(error.message || getMessage("api.statsError", "Failed to load statistics."));
       return {
         pendulum: 0,
         ballbeam: 0
@@ -310,7 +316,7 @@
 
       return Array.isArray(data) ? data : [];
     } catch (error) {
-      notifyError(error.message || "Failed to load statistics details.");
+      notifyError(error.message || getMessage("api.statsDetailsError", "Failed to load statistics details."));
       return [];
     }
   }

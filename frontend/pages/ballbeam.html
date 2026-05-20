@@ -52,7 +52,7 @@
     <script src="../js/api.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
   </head>
-  <body>
+  <body data-page-title="nav.ballbeam">
     <div class="page-shell">
       <div data-navbar></div>
 
@@ -205,22 +205,6 @@
             r2: parseNumber(form.r2.value),
             initRychlost: parseNumber(form.initRychlost.value),
             initZrychlenie: parseNumber(form.initZrychlenie.value)
-          };
-        }
-
-        function combineRuns(run1, run2) {
-          var time1 = Array.isArray(run1.time) ? run1.time : [];
-          var position1 = Array.isArray(run1.position) ? run1.position : [];
-          var beamAngle1 = Array.isArray(run1.beamAngle) ? run1.beamAngle : [];
-          var time2 = Array.isArray(run2.time) ? run2.time : [];
-          var position2 = Array.isArray(run2.position) ? run2.position : [];
-          var beamAngle2 = Array.isArray(run2.beamAngle) ? run2.beamAngle : [];
-          var offset = time1.length ? time1[time1.length - 1] : 0;
-
-          return {
-            time: time1.concat(time2.slice(1).map(function (value) { return value + offset; })),
-            position: position1.concat(position2.slice(1)),
-            beamAngle: beamAngle1.concat(beamAngle2.slice(1))
           };
         }
 
@@ -500,29 +484,18 @@
           }
 
           try {
-            window.api.trackAnimation("ballbeam");
+            await window.api.trackAnimation("ballbeam");
 
-            var run1 = await window.api.runBallBeam({
+            simulationData = await window.api.runBallBeam({
               m: params.m,
               R: params.R,
               g: params.g,
               J: params.J,
               r: params.r,
+              r2: params.r2,
               initRychlost: params.initRychlost,
               initZrychlenie: params.initZrychlenie
             });
-
-            var run2 = await window.api.runBallBeam({
-              m: params.m,
-              R: params.R,
-              g: params.g,
-              J: params.J,
-              r: params.r2,
-              initRychlost: getLastValue(run1.position, params.initRychlost),
-              initZrychlenie: getLastValue(run1.beamAngle, params.initZrychlenie)
-            });
-
-            simulationData = combineRuns(run1, run2);
 
             if (!simulationData.time.length) {
               throw new Error(getTranslation("general.error", "Error"));

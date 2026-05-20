@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="sk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WEBTE2 | Documentation</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <style>
+      .docs-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+      }
+
+      .docs-frame {
+        width: 100%;
+        min-height: 78vh;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        background: #ffffff;
+      }
+    </style>
+    <script src="../js/i18n.js" defer></script>
+    <script src="../js/main.js" defer></script>
+  </head>
+  <body data-page-title="nav.documentation">
+    <div class="page-shell">
+      <div data-navbar></div>
+
+      <main class="page-container">
+        <section class="card">
+          <div class="docs-header">
+            <h1 class="section-title" style="margin: 0;" data-i18n="docs.title">API Documentation</h1>
+            <a
+              class="btn-primary"
+              href="http://localhost:3000/api/docs/pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-i18n="docs.downloadPdf"
+            >
+              Download PDF
+            </a>
+          </div>
+
+          <iframe
+            class="docs-frame"
+            src="http://localhost:3000/api/docs"
+            data-i18n-attr="title:docs.frameTitle"
+            title="API Documentation"
+            loading="lazy"
+          ></iframe>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>

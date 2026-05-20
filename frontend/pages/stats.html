@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="sk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WEBTE2 | Statistics</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <style>
+      .stats-grid {
+        display: grid;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+
+      .summary-card {
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      .summary-value {
+        font-size: clamp(2rem, 5vw, 3.4rem);
+        line-height: 1;
+        font-weight: 800;
+        color: var(--color-primary);
+      }
+
+      .stats-section {
+        margin-top: 1rem;
+      }
+
+      .details-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+      }
+
+      .stats-table {
+        min-width: 760px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.4rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.86rem;
+        font-weight: 700;
+      }
+
+      .badge--pendulum {
+        background: rgba(29, 74, 143, 0.12);
+        color: #1d4a8f;
+      }
+
+      .badge--ballbeam {
+        background: rgba(242, 153, 74, 0.16);
+        color: #b5651d;
+      }
+
+      .sort-button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      @media (min-width: 768px) {
+        .stats-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    </style>
+    <script src="../js/i18n.js" defer></script>
+    <script src="../js/main.js" defer></script>
+    <script src="../js/api.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
+  </head>
+  <body data-page-title="nav.statistics">
+    <div class="page-shell">
+      <div data-navbar></div>
+
+      <main class="page-container">
+        <section class="card">
+          <h1 class="section-title" data-i18n="stats.title">Usage Statistics</h1>
+
+          <div class="stats-grid">
+            <article class="panel summary-card">
+              <span class="muted" data-i18n="stats.pendulum">Pendulum</span>
+              <strong id="pendulum-total" class="summary-value">0</strong>
+              <span class="muted" data-i18n="stats.totalRuns">Total runs</span>
+            </article>
+
+            <article class="panel summary-card">
+              <span class="muted" data-i18n="stats.ballbeam">Ball-Beam</span>
+              <strong id="ballbeam-total" class="summary-value">0</strong>
+              <span class="muted" data-i18n="stats.totalRuns">Total runs</span>
+            </article>
+          </div>
+
+          <article class="panel stats-section">
+            <div class="chart-container">
+              <canvas id="stats-chart"></canvas>
+            </div>
+          </article>
+
+          <article class="panel stats-section">
+            <div class="details-header">
+              <h2 class="section-title" style="margin: 0;" data-i18n="stats.details">Details</h2>
+              <button id="sort-date-button" class="btn-secondary sort-button" type="button">
+                <span data-i18n="stats.sortDate">Sort by date</span>
+                <span id="sort-direction-indicator">&#8595;</span>
+              </button>
+            </div>
+
+            <div class="table-wrapper">
+              <table class="stats-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="stats.animation">Animation</th>
+                    <th data-i18n="stats.userToken">User Token</th>
+                    <th data-i18n="stats.city">City</th>
+                    <th data-i18n="stats.country">Country</th>
+                    <th data-i18n="stats.dateTime">Date/Time</th>
+                  </tr>
+                </thead>
+                <tbody id="stats-details-body">
+                  <tr>
+                    <td colspan="5" class="muted" data-i18n="general.loading">Loading...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <div id="global-loading" aria-live="polite"></div>
+      </main>
+    </div>
+
+    <script>
+      (function () {
+        var chartInstance = null;
+        var state = {
+          stats: {
+            pendulum: 0,
+            ballbeam: 0
+          },
+          details: [],
+          sortDirection: "desc"
+        };
+
+        function getTranslation(key, fallback) {
+          return typeof window.t === "function" ? window.t(key) : fallback;
+        }
+
+        function formatDate(value) {
+          if (!value) {
+            return "-";
+          }
+
+          var parsed = new Date(value);
+          return Number.isNaN(parsed.getTime()) ? String(value) : parsed.toLocaleString();
+        }
+
+        function toTimestamp(value) {
+          var parsed = new Date(value);
+          return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+        }
+
+        function resolveField(record, keys, fallback) {
+          for (var index = 0; index < keys.length; index += 1) {
+            if (record[keys[index]] !== undefined && record[keys[index]] !== null) {
+              return record[keys[index]];
+            }
+          }
+
+          return fallback;
+        }
+
+        function escapeHtml(value) {
+          return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/\"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+        }
+
+        function getAnimationBadge(type) {
+          var normalized = String(type || "").toLowerCase();
+          var isBallBeam = normalized.indexOf("ball") !== -1;
+          var label = isBallBeam
+            ? getTranslation("stats.ballbeam", "Ball-Beam")
+            : getTranslation("stats.pendulum", "Pendulum");
+
+          return (
+            '<span class="badge ' +
+            (isBallBeam ? "badge--ballbeam" : "badge--pendulum") +
+            '">' +
+            escapeHtml(label) +
+            "</span>"
+          );
+        }
+
+        function renderSummary() {
+          document.getElementById("pendulum-total").textContent = state.stats.pendulum;
+          document.getElementById("ballbeam-total").textContent = state.stats.ballbeam;
+        }
+
+        function createChart() {
+          var context = document.getElementById("stats-chart").getContext("2d");
+
+          if (chartInstance) {
+            chartInstance.destroy();
+          }
+
+          chartInstance = new Chart(context, {
+            type: "bar",
+            data: {
+              labels: [
+                getTranslation("stats.pendulum", "Pendulum"),
+                getTranslation("stats.ballbeam", "Ball-Beam")
+              ],
+              datasets: [
+                {
+                  label: getTranslation("stats.totalRuns", "Total runs"),
+                  data: [state.stats.pendulum, state.stats.ballbeam],
+                  backgroundColor: ["rgba(29, 74, 143, 0.85)", "rgba(242, 153, 74, 0.85)"],
+                  borderColor: ["#1d4a8f", "#f2994a"],
+                  borderWidth: 1,
+                  borderRadius: 12
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  display: true
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: {
+                    precision: 0
+                  },
+                  title: {
+                    display: true,
+                    text: getTranslation("stats.totalRuns", "Total runs")
+                  }
+                }
+              }
+            }
+          });
+        }
+
+        function sortDetails() {
+          state.details.sort(function (left, right) {
+            var leftDate = resolveField(left, ["dateTime", "date", "createdAt", "timestamp", "used_at"], "");
+            var rightDate = resolveField(right, ["dateTime", "date", "createdAt", "timestamp", "used_at"], "");
+            var difference = toTimestamp(leftDate) - toTimestamp(rightDate);
+
+            return state.sortDirection === "asc" ? difference : -difference;
+          });
+        }
+
+        function renderDetails() {
+          var tbody = document.getElementById("stats-details-body");
+
+          if (!state.details.length) {
+            tbody.innerHTML =
+              '<tr><td colspan="5" class="muted">' + getTranslation("stats.noData", "No statistics available") + "</td></tr>";
+            return;
+          }
+
+          tbody.innerHTML = state.details
+            .map(function (record) {
+              var animation = resolveField(record, ["animationType", "animation", "type", "animation_type"], "pendulum");
+              var token = resolveField(record, ["userToken", "token", "user", "user_token"], "");
+              var city = resolveField(record, ["city"], "-");
+              var country = resolveField(record, ["country"], "-");
+              var date = resolveField(record, ["dateTime", "date", "createdAt", "timestamp", "used_at"], "-");
+
+              return (
+                "<tr>" +
+                "<td>" + getAnimationBadge(animation) + "</td>" +
+                "<td>" + escapeHtml(String(token).slice(0, 8)) + "</td>" +
+                "<td>" + escapeHtml(String(city)) + "</td>" +
+                "<td>" + escapeHtml(String(country)) + "</td>" +
+                "<td>" + escapeHtml(formatDate(date)) + "</td>" +
+                "</tr>"
+              );
+            })
+            .join("");
+        }
+
+        function updateSortIndicator() {
+          document.getElementById("sort-direction-indicator").textContent =
+            state.sortDirection === "desc" ? "\u2193" : "\u2191";
+        }
+
+        async function loadSummary() {
+          var stats = await window.api.getStats();
+          state.stats.pendulum = Number(stats.pendulum || 0);
+          state.stats.ballbeam = Number(stats.ballbeam || 0);
+          renderSummary();
+          createChart();
+        }
+
+        async function loadDetails() {
+          state.details = await window.api.getStatsDetails();
+          sortDetails();
+          renderDetails();
+          updateSortIndicator();
+        }
+
+        function bindEvents() {
+          document.getElementById("sort-date-button").addEventListener("click", function () {
+            state.sortDirection = state.sortDirection === "desc" ? "asc" : "desc";
+            sortDetails();
+            renderDetails();
+            updateSortIndicator();
+          });
+        }
+
+        document.addEventListener("languageChanged", function () {
+          renderSummary();
+          createChart();
+          renderDetails();
+        });
+
+        document.addEventListener("DOMContentLoaded", async function () {
+          bindEvents();
+
+          if (typeof window.showLoading === "function") {
+            window.showLoading("global-loading");
+          }
+
+          try {
+            await Promise.all([loadSummary(), loadDetails()]);
+          } finally {
+            if (typeof window.hideLoading === "function") {
+              window.hideLoading("global-loading");
+            }
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

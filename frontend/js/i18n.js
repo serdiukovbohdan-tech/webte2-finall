@@ -48,6 +48,34 @@
       }
     });
 
+    document.querySelectorAll("[data-i18n-attr]").forEach(function (element) {
+      var definition = element.getAttribute("data-i18n-attr");
+
+      if (!definition) {
+        return;
+      }
+
+      definition.split(";").forEach(function (mapping) {
+        var parts = mapping.split(":");
+        var attributeName = parts[0] ? parts[0].trim() : "";
+        var key = parts[1] ? parts[1].trim() : "";
+
+        if (!attributeName || !key || typeof dictionary[key] !== "string") {
+          return;
+        }
+
+        element.setAttribute(attributeName, dictionary[key]);
+      });
+    });
+
+    if (document.body) {
+      var pageTitleKey = document.body.getAttribute("data-page-title");
+
+      if (pageTitleKey && typeof dictionary[pageTitleKey] === "string") {
+        document.title = dictionary[pageTitleKey] + " | WEBTE2";
+      }
+    }
+
     document.documentElement.lang = currentLanguage;
   }
 
@@ -78,6 +106,7 @@
 
   window.setLanguage = setLanguage;
   window.t = t;
+  window.applyTranslations = applyTranslations;
 
   document.addEventListener("DOMContentLoaded", function () {
     setLanguage(getSavedLanguage());
