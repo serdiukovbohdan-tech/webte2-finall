@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="sk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WEBTE2 | Terminal</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css"
+    />
+    <style>
+      .compute-layout {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .compute-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      .session-note {
+        margin: 0;
+        font-size: 0.92rem;
+        color: var(--color-text-muted);
+      }
+
+      .CodeMirror {
+        height: 360px;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        font-size: 0.95rem;
+      }
+
+      .output-panel {
+        min-height: 360px;
+        max-height: 360px;
+        overflow: auto;
+        padding: 1rem;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        background: #0b1730;
+        color: #e7eefb;
+        font-family: "Consolas", "Courier New", monospace;
+        white-space: pre-wrap;
+      }
+
+      .output-entry {
+        margin: 0 0 0.85rem;
+        padding-bottom: 0.85rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .output-entry:last-child {
+        margin-bottom: 0;
+        padding-bottom: 0;
+        border-bottom: 0;
+      }
+
+      .output-entry--success {
+        color: #86efac;
+      }
+
+      .output-entry--error {
+        color: #fca5a5;
+      }
+
+      .output-placeholder {
+        color: #9fb2d1;
+      }
+
+      @media (min-width: 768px) {
+        .compute-layout {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+    </style>
+    <script src="../js/i18n.js" defer></script>
+    <script src="../js/main.js" defer></script>
+    <script src="../js/api.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/octave/octave.min.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div data-navbar></div>
+
+      <main class="page-container">
+        <section class="card">
+          <div class="compute-layout">
+            <article class="panel">
+              <div class="form-group">
+                <label for="command-editor" data-i18n="compute.enterCommand">Enter Octave command</label>
+                <textarea id="command-editor">a = 1 + 1</textarea>
+              </div>
+
+              <div class="compute-actions">
+                <button id="run-button" class="btn-primary" type="button" data-i18n="compute.run">
+                  Run
+                </button>
+                <button
+                  id="new-session-button"
+                  class="btn-secondary"
+                  type="button"
+                  data-i18n="compute.newSession"
+                >
+                  New Session
+                </button>
+              </div>
+
+              <p class="session-note">
+                <span data-i18n="compute.sessionId">Session ID</span>:
+                <span id="session-id-value">-</span>
+              </p>
+            </article>
+
+            <article class="panel">
+              <div
+                style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem;"
+              >
+                <h2 class="section-title" style="margin: 0;" data-i18n="compute.output">Output</h2>
+                <button
+                  id="clear-output-button"
+                  class="btn-secondary"
+                  type="button"
+                  data-i18n="compute.clearOutput"
+                >
+                  Clear output
+                </button>
+              </div>
+
+              <div id="output-panel" class="output-panel" aria-live="polite">
+                <div class="output-placeholder" data-i18n="general.loading">Loading...</div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <div id="global-loading" aria-live="polite"></div>
+      </main>
+    </div>
+
+    <script>
+      (function () {
+        var state = {
+          sessionId: null,
+          editor: null
+        };
+
+        function getTranslation(key, fallback) {
+          return typeof window.t === "function" ? window.t(key) : fallback;
+        }
+
+        function formatOutput(value) {
+          if (value === null || value === undefined || value === "") {
+            return "";
+          }
+
+          if (typeof value === "string") {
+            return value;
+          }
+
+          try {
+            return JSON.stringify(value, null, 2);
+          } catch (error) {
+            return String(value);
+          }
+        }
+
+        function renderPlaceholder() {
+          var outputPanel = document.getElementById("output-panel");
+          outputPanel.innerHTML =
+            '<div class="output-placeholder">' + getTranslation("compute.output", "Output") + "</div>";
+        }
+
+        function appendOutput(content, isError) {
+          var outputPanel = document.getElementById("output-panel");
+          var entry = document.createElement("pre");
+
+          if (outputPanel.querySelector(".output-placeholder")) {
+            outputPanel.innerHTML = "";
+          }
+
+          entry.className = "output-entry " + (isError ? "output-entry--error" : "output-entry--success");
+          entry.textContent = content;
+          outputPanel.appendChild(entry);
+          outputPanel.scrollTop = outputPanel.scrollHeight;
+        }
+
+        function updateSessionLabel() {
+          document.getElementById("session-id-value").textContent = state.sessionId || "-";
+        }
+
+        function initEditor() {
+          var textarea = document.getElementById("command-editor");
+          var mode = window.CodeMirror && CodeMirror.modes.octave ? "octave" : "javascript";
+
+          state.editor = CodeMirror.fromTextArea(textarea, {
+            mode: mode,
+            theme: "default",
+            lineNumbers: true,
+            lineWrapping: true,
+            indentUnit: 2,
+            tabSize: 2
+          });
+        }
+
+        async function createFreshSession() {
+          state.sessionId = await window.api.createSession();
+          updateSessionLabel();
+          renderPlaceholder();
+        }
+
+        async function handleRun() {
+          var command = state.editor ? state.editor.getValue().trim() : "";
+
+          if (!command) {
+            return;
+          }
+
+          if (!state.sessionId) {
+            await createFreshSession();
+          }
+
+          var response = await window.api.compute(state.sessionId, command);
+
+          if (response.error) {
+            appendOutput(response.error, true);
+            return;
+          }
+
+          appendOutput(formatOutput(response.result), false);
+        }
+
+        async function handleNewSession() {
+          await createFreshSession();
+        }
+
+        function clearOutput() {
+          renderPlaceholder();
+        }
+
+        function bindEvents() {
+          document.getElementById("run-button").addEventListener("click", handleRun);
+          document.getElementById("new-session-button").addEventListener("click", handleNewSession);
+          document.getElementById("clear-output-button").addEventListener("click", clearOutput);
+        }
+
+        document.addEventListener("languageChanged", function () {
+          if (state.editor) {
+            state.editor.refresh();
+          }
+
+          if (document.querySelector(".output-placeholder")) {
+            renderPlaceholder();
+          }
+        });
+
+        document.addEventListener("DOMContentLoaded", async function () {
+          initEditor();
+          bindEvents();
+          await createFreshSession();
+        });
+      })();
+    </script>
+  </body>
+</html>

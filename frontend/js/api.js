@@ -326,4 +326,15 @@
   window.trackAnimation = trackAnimation;
   window.getStats = getStats;
   window.getStatsDetails = getStatsDetails;
+  window.api = {
+    createSession: createSession,
+    compute: compute,
+    runPendulum: runPendulum,
+    runBallBeam: runBallBeam,
+    getLogs: getLogs,
+    exportLogs: exportLogs,
+    trackAnimation: trackAnimation,
+    getStats: getStats,
+    getStatsDetails: getStatsDetails
+  };
 })();

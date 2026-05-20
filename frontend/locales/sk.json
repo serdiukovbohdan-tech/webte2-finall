@@ -17,6 +17,7 @@
   "compute.output": "Výstup",
   "compute.newSession": "Nová relácia",
   "compute.sessionId": "ID relácie",
+  "compute.clearOutput": "Vymazať výstup",
   "pendulum.title": "Simulácia inverzného kyvadla",
   "pendulum.cartMass": "Hmotnosť vozíka",
   "pendulum.pendulumMass": "Hmotnosť kyvadla",
@@ -31,6 +32,8 @@
   "pendulum.reset": "Resetovať",
   "pendulum.running": "Prebieha spúšťanie...",
   "pendulum.complete": "Simulácia dokončená",
+  "pendulum.currentPosition": "Poloha",
+  "pendulum.currentAngle": "Uhol",
   "ballbeam.title": "Simulácia guličky na nosníku",
   "ballbeam.ballMass": "Hmotnosť guličky",
   "ballbeam.ballRadius": "Polomer guličky",
@@ -44,6 +47,8 @@
   "ballbeam.reset": "Resetovať",
   "ballbeam.running": "Prebieha spúšťanie...",
   "ballbeam.complete": "Simulácia dokončená",
+  "ballbeam.currentPosition": "Poloha guličky",
+  "ballbeam.currentBeamAngle": "Uhol nosníka",
   "logs.title": "Logy požiadaviek",
   "logs.exportCsv": "Exportovať CSV",
   "logs.date": "Dátum",
@@ -63,5 +68,11 @@
   "general.language": "Jazyk",
   "general.loading": "Načítava sa...",
   "general.error": "Chyba",
-  "general.success": "Úspech"
+  "general.success": "Úspech",
+  "chart.time": "Čas (s)",
+  "chart.value": "Hodnota",
+  "chart.position": "Poloha",
+  "chart.angle": "Uhol",
+  "chart.beamAngle": "Uhol nosníka",
+  "footer.team": "Tím WEBTE2"
 }

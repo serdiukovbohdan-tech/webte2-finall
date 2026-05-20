@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="sk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WEBTE2 | Ball-Beam</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <style>
+      .simulation-grid {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .visual-stack {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .chart-stack {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .form-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      .canvas-container {
+        min-height: 300px;
+      }
+
+      .canvas-container canvas {
+        width: 100%;
+        min-height: 300px;
+      }
+
+      .chart-container.chart-container--small {
+        min-height: 220px;
+      }
+
+      @media (min-width: 992px) {
+        .simulation-grid {
+          grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+          align-items: start;
+        }
+      }
+    </style>
+    <script src="../js/i18n.js" defer></script>
+    <script src="../js/main.js" defer></script>
+    <script src="../js/api.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div data-navbar></div>
+
+      <main class="page-container">
+        <section class="card">
+          <h1 class="section-title" data-i18n="ballbeam.title">Ball on Beam Simulation</h1>
+
+          <div class="simulation-grid">
+            <article class="panel">
+              <form id="ballbeam-form">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="ball-mass" data-i18n="ballbeam.ballMass">Ball mass</label>
+                    <input id="ball-mass" name="m" type="number" step="0.001" value="0.111" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="ball-radius" data-i18n="ballbeam.ballRadius">Ball radius</label>
+                    <input id="ball-radius" name="R" type="number" step="0.001" value="0.015" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="gravity" data-i18n="ballbeam.gravity">Gravity</label>
+                    <input id="gravity" name="g" type="number" step="0.1" value="-9.8" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="inertia" data-i18n="ballbeam.inertia">Inertia</label>
+                    <input id="inertia" name="J" type="number" step="0.000001" value="0.00000999" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="target-run-1" data-i18n="ballbeam.targetPositionRun1">Target position run 1</label>
+                    <input id="target-run-1" name="r" type="number" step="0.01" value="0.25" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="target-run-2" data-i18n="ballbeam.targetPositionRun2">Target position run 2</label>
+                    <input id="target-run-2" name="r2" type="number" step="0.01" value="0.5" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="initial-velocity" data-i18n="ballbeam.initialVelocity">Initial velocity</label>
+                    <input id="initial-velocity" name="initRychlost" type="number" step="0.01" value="0" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="initial-acceleration" data-i18n="ballbeam.initialAcceleration">
+                      Initial acceleration
+                    </label>
+                    <input id="initial-acceleration" name="initZrychlenie" type="number" step="0.01" value="0" />
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button id="run-button" class="btn-primary" type="submit" data-i18n="ballbeam.runSimulation">
+                    Run Simulation
+                  </button>
+                  <button id="reset-button" class="btn-secondary" type="button" data-i18n="ballbeam.reset">
+                    Reset
+                  </button>
+                </div>
+              </form>
+            </article>
+
+            <div class="visual-stack">
+              <article class="panel">
+                <div class="canvas-container">
+                  <canvas id="ballbeam-canvas" width="800" height="420"></canvas>
+                </div>
+              </article>
+
+              <div class="chart-stack">
+                <article class="panel">
+                  <div class="chart-container">
+                    <canvas id="position-chart"></canvas>
+                  </div>
+                </article>
+
+                <article class="panel">
+                  <div class="chart-container chart-container--small">
+                    <canvas id="angle-chart"></canvas>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div id="global-loading" aria-live="polite"></div>
+      </main>
+    </div>
+
+    <script>
+      (function () {
+        var positionChart = null;
+        var angleChart = null;
+        var animationFrameId = null;
+        var simulationData = null;
+        var animationState = {
+          currentIndex: 0,
+          currentTime: 0,
+          startTimestamp: null
+        };
+
+        var currentTimePlugin = {
+          id: "currentTimePlugin",
+          afterDatasetsDraw: function (chart, args, pluginOptions) {
+            if (!simulationData || !simulationData.time.length) {
+              return;
+            }
+
+            var xScale = chart.scales.x;
+            var yScale = chart.scales.y;
+            var x = xScale.getPixelForValue(pluginOptions.currentTime || 0);
+            var context = chart.ctx;
+
+            context.save();
+            context.beginPath();
+            context.strokeStyle = "#0f2d5c";
+            context.lineWidth = 2;
+            context.moveTo(x, yScale.top);
+            context.lineTo(x, yScale.bottom);
+            context.stroke();
+            context.restore();
+          }
+        };
+
+        function getTranslation(key, fallback) {
+          return typeof window.t === "function" ? window.t(key) : fallback;
+        }
+
+        function parseNumber(value) {
+          return Number.parseFloat(value);
+        }
+
+        function getLastValue(values, fallback) {
+          return values && values.length ? values[values.length - 1] : fallback;
+        }
+
+        function collectParams() {
+          var form = document.getElementById("ballbeam-form");
+
+          return {
+            m: parseNumber(form.m.value),
+            R: parseNumber(form.R.value),
+            g: parseNumber(form.g.value),
+            J: parseNumber(form.J.value),
+            r: parseNumber(form.r.value),
+            r2: parseNumber(form.r2.value),
+            initRychlost: parseNumber(form.initRychlost.value),
+            initZrychlenie: parseNumber(form.initZrychlenie.value)
+          };
+        }
+
+        function combineRuns(run1, run2) {
+          var time1 = Array.isArray(run1.time) ? run1.time : [];
+          var position1 = Array.isArray(run1.position) ? run1.position : [];
+          var beamAngle1 = Array.isArray(run1.beamAngle) ? run1.beamAngle : [];
+          var time2 = Array.isArray(run2.time) ? run2.time : [];
+          var position2 = Array.isArray(run2.position) ? run2.position : [];
+          var beamAngle2 = Array.isArray(run2.beamAngle) ? run2.beamAngle : [];
+          var offset = time1.length ? time1[time1.length - 1] : 0;
+
+          return {
+            time: time1.concat(time2.slice(1).map(function (value) { return value + offset; })),
+            position: position1.concat(position2.slice(1)),
+            beamAngle: beamAngle1.concat(beamAngle2.slice(1))
+          };
+        }
+
+        function stopAnimation() {
+          if (animationFrameId) {
+            window.cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+          }
+        }
+
+        function getInterpolatedState(elapsedTime) {
+          if (!simulationData || !simulationData.time.length) {
+            return {
+              position: 0,
+              beamAngle: 0,
+              time: 0,
+              index: 0
+            };
+          }
+
+          var times = simulationData.time;
+          var positions = simulationData.position;
+          var beamAngles = simulationData.beamAngle;
+          var lastIndex = times.length - 1;
+
+          if (elapsedTime <= times[0]) {
+            return {
+              position: positions[0],
+              beamAngle: beamAngles[0],
+              time: times[0],
+              index: 0
+            };
+          }
+
+          if (elapsedTime >= times[lastIndex]) {
+            return {
+              position: positions[lastIndex],
+              beamAngle: beamAngles[lastIndex],
+              time: times[lastIndex],
+              index: lastIndex
+            };
+          }
+
+          for (var index = 0; index < lastIndex; index += 1) {
+            var currentTime = times[index];
+            var nextTime = times[index + 1];
+
+            if (elapsedTime >= currentTime && elapsedTime <= nextTime) {
+              var progress = (elapsedTime - currentTime) / (nextTime - currentTime || 1);
+
+              return {
+                position: positions[index] + (positions[index + 1] - positions[index]) * progress,
+                beamAngle: beamAngles[index] + (beamAngles[index + 1] - beamAngles[index]) * progress,
+                time: elapsedTime,
+                index: index + 1
+              };
+            }
+          }
+
+          return {
+            position: positions[lastIndex],
+            beamAngle: beamAngles[lastIndex],
+            time: times[lastIndex],
+            index: lastIndex
+          };
+        }
+
+        function drawScene(position, beamAngle, timeValue) {
+          var canvas = document.getElementById("ballbeam-canvas");
+          var context = canvas.getContext("2d");
+          var width = canvas.width;
+          var height = canvas.height;
+          var centerX = width / 2;
+          var centerY = height / 2 + 20;
+          var beamLength = 420;
+          var beamThickness = 18;
+          var beamHalfLength = beamLength / 2;
+          var radiusValue = Math.max(10, parseNumber(document.getElementById("ball-radius").value) * 900);
+          var maxExtent = Math.max(
+            0.6,
+            Math.abs(position),
+            Math.abs(parseNumber(document.getElementById("target-run-1").value)),
+            Math.abs(parseNumber(document.getElementById("target-run-2").value)),
+            Math.abs(getLastValue(simulationData ? simulationData.position : [], 0))
+          );
+          var tangentX = Math.cos(beamAngle);
+          var tangentY = Math.sin(beamAngle);
+          var normalX = Math.sin(beamAngle);
+          var normalY = -Math.cos(beamAngle);
+          var beamStartX = centerX - tangentX * beamHalfLength;
+          var beamStartY = centerY - tangentY * beamHalfLength;
+          var beamEndX = centerX + tangentX * beamHalfLength;
+          var beamEndY = centerY + tangentY * beamHalfLength;
+          var beamOffset = (position / maxExtent) * (beamHalfLength - radiusValue - 20);
+          var ballX = centerX + tangentX * beamOffset + normalX * (beamThickness / 2 + radiusValue);
+          var ballY = centerY + tangentY * beamOffset + normalY * (beamThickness / 2 + radiusValue);
+
+          context.clearRect(0, 0, width, height);
+          context.fillStyle = "#f8fbff";
+          context.fillRect(0, 0, width, height);
+
+          context.lineCap = "round";
+          context.strokeStyle = "#1d4a8f";
+          context.lineWidth = beamThickness;
+          context.beginPath();
+          context.moveTo(beamStartX, beamStartY);
+          context.lineTo(beamEndX, beamEndY);
+          context.stroke();
+
+          context.fillStyle = "#0f2d5c";
+          context.beginPath();
+          context.arc(centerX, centerY, 10, 0, Math.PI * 2);
+          context.fill();
+
+          context.fillStyle = "#f2994a";
+          context.beginPath();
+          context.arc(ballX, ballY, radiusValue, 0, Math.PI * 2);
+          context.fill();
+
+          context.fillStyle = "#11213d";
+          context.font = "18px Segoe UI";
+          context.fillText(
+            getTranslation("ballbeam.currentPosition", "Ball position") + ": " + position.toFixed(3),
+            24,
+            34
+          );
+          context.fillText(
+            getTranslation("ballbeam.currentBeamAngle", "Beam angle") + ": " + beamAngle.toFixed(3),
+            24,
+            62
+          );
+          context.fillText(getTranslation("chart.time", "Time (s)") + ": " + timeValue.toFixed(2), 24, 90);
+        }
+
+        function buildChart(canvasId, label, color) {
+          var context = document.getElementById(canvasId).getContext("2d");
+
+          return new Chart(context, {
+            type: "line",
+            data: {
+              datasets: [
+                {
+                  label: label,
+                  data: [],
+                  borderColor: color,
+                  backgroundColor: color === "#1d4a8f" ? "rgba(29, 74, 143, 0.12)" : "rgba(242, 153, 74, 0.12)",
+                  borderWidth: 2,
+                  tension: 0.2,
+                  pointRadius: 0
+                }
+              ]
+            },
+            options: {
+              animation: false,
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  display: true
+                },
+                currentTimePlugin: {
+                  currentTime: 0
+                }
+              },
+              scales: {
+                x: {
+                  type: "linear",
+                  title: {
+                    display: true,
+                    text: getTranslation("chart.time", "Time (s)")
+                  }
+                },
+                y: {
+                  title: {
+                    display: true,
+                    text: label
+                  }
+                }
+              }
+            },
+            plugins: [currentTimePlugin]
+          });
+        }
+
+        function createCharts() {
+          if (positionChart) {
+            positionChart.destroy();
+          }
+
+          if (angleChart) {
+            angleChart.destroy();
+          }
+
+          positionChart = buildChart("position-chart", getTranslation("chart.position", "Position"), "#1d4a8f");
+          angleChart = buildChart("angle-chart", getTranslation("chart.beamAngle", "Beam angle"), "#f2994a");
+        }
+
+        function updateCharts(index, timeValue) {
+          if (!positionChart || !angleChart || !simulationData) {
+            return;
+          }
+
+          positionChart.data.datasets[0].data = simulationData.position
+            .slice(0, index + 1)
+            .map(function (value, dataIndex) {
+              return {
+                x: simulationData.time[dataIndex],
+                y: value
+              };
+            });
+          positionChart.options.plugins.currentTimePlugin.currentTime = timeValue;
+          positionChart.update("none");
+
+          angleChart.data.datasets[0].data = simulationData.beamAngle
+            .slice(0, index + 1)
+            .map(function (value, dataIndex) {
+              return {
+                x: simulationData.time[dataIndex],
+                y: value
+              };
+            });
+          angleChart.options.plugins.currentTimePlugin.currentTime = timeValue;
+          angleChart.update("none");
+        }
+
+        function renderFrame(timestamp) {
+          if (!simulationData) {
+            return;
+          }
+
+          if (!animationState.startTimestamp) {
+            animationState.startTimestamp = timestamp;
+          }
+
+          var elapsedSeconds = (timestamp - animationState.startTimestamp) / 1000;
+          var state = getInterpolatedState(elapsedSeconds);
+
+          animationState.currentIndex = state.index;
+          animationState.currentTime = state.time;
+
+          drawScene(state.position, state.beamAngle, state.time);
+          updateCharts(state.index, state.time);
+
+          if (state.index >= simulationData.time.length - 1) {
+            stopAnimation();
+            if (typeof window.showSuccess === "function") {
+              window.showSuccess(getTranslation("ballbeam.complete", "Simulation complete"));
+            }
+            return;
+          }
+
+          animationFrameId = window.requestAnimationFrame(renderFrame);
+        }
+
+        function startAnimation() {
+          stopAnimation();
+          animationState.currentIndex = 0;
+          animationState.currentTime = 0;
+          animationState.startTimestamp = null;
+          createCharts();
+          drawScene(simulationData.position[0] || 0, simulationData.beamAngle[0] || 0, simulationData.time[0] || 0);
+          updateCharts(0, simulationData.time[0] || 0);
+          animationFrameId = window.requestAnimationFrame(renderFrame);
+        }
+
+        async function runSimulation(event) {
+          event.preventDefault();
+
+          var params = collectParams();
+          var runButton = document.getElementById("run-button");
+
+          runButton.disabled = true;
+          runButton.textContent = getTranslation("ballbeam.running", "Running...");
+
+          if (typeof window.showLoading === "function") {
+            window.showLoading("global-loading");
+          }
+
+          try {
+            window.api.trackAnimation("ballbeam");
+
+            var run1 = await window.api.runBallBeam({
+              m: params.m,
+              R: params.R,
+              g: params.g,
+              J: params.J,
+              r: params.r,
+              initRychlost: params.initRychlost,
+              initZrychlenie: params.initZrychlenie
+            });
+
+            var run2 = await window.api.runBallBeam({
+              m: params.m,
+              R: params.R,
+              g: params.g,
+              J: params.J,
+              r: params.r2,
+              initRychlost: getLastValue(run1.position, params.initRychlost),
+              initZrychlenie: getLastValue(run1.beamAngle, params.initZrychlenie)
+            });
+
+            simulationData = combineRuns(run1, run2);
+
+            if (!simulationData.time.length) {
+              throw new Error(getTranslation("general.error", "Error"));
+            }
+
+            startAnimation();
+          } catch (error) {
+            if (typeof window.showError === "function") {
+              window.showError(error.message || getTranslation("general.error", "Error"));
+            }
+          } finally {
+            if (typeof window.hideLoading === "function") {
+              window.hideLoading("global-loading");
+            }
+
+            runButton.disabled = false;
+            runButton.textContent = getTranslation("ballbeam.runSimulation", "Run Simulation");
+          }
+        }
+
+        function resetSimulation() {
+          stopAnimation();
+          document.getElementById("ballbeam-form").reset();
+          simulationData = null;
+          createCharts();
+          drawScene(0, 0, 0);
+        }
+
+        document.addEventListener("languageChanged", function () {
+          createCharts();
+
+          if (simulationData) {
+            updateCharts(animationState.currentIndex, animationState.currentTime);
+            drawScene(
+              simulationData.position[animationState.currentIndex] || 0,
+              simulationData.beamAngle[animationState.currentIndex] || 0,
+              animationState.currentTime || 0
+            );
+          } else {
+            drawScene(0, 0, 0);
+          }
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+          createCharts();
+          drawScene(0, 0, 0);
+          document.getElementById("ballbeam-form").addEventListener("submit", runSimulation);
+          document.getElementById("reset-button").addEventListener("click", resetSimulation);
+        });
+      })();
+    </script>
+  </body>
+</html>

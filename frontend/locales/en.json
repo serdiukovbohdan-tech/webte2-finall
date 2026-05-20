@@ -17,6 +17,7 @@
   "compute.output": "Output",
   "compute.newSession": "New Session",
   "compute.sessionId": "Session ID",
+  "compute.clearOutput": "Clear output",
   "pendulum.title": "Inverted Pendulum Simulation",
   "pendulum.cartMass": "Cart mass",
   "pendulum.pendulumMass": "Pendulum mass",
@@ -31,6 +32,8 @@
   "pendulum.reset": "Reset",
   "pendulum.running": "Running...",
   "pendulum.complete": "Simulation complete",
+  "pendulum.currentPosition": "Position",
+  "pendulum.currentAngle": "Angle",
   "ballbeam.title": "Ball on Beam Simulation",
   "ballbeam.ballMass": "Ball mass",
   "ballbeam.ballRadius": "Ball radius",
@@ -44,6 +47,8 @@
   "ballbeam.reset": "Reset",
   "ballbeam.running": "Running...",
   "ballbeam.complete": "Simulation complete",
+  "ballbeam.currentPosition": "Ball position",
+  "ballbeam.currentBeamAngle": "Beam angle",
   "logs.title": "Request Logs",
   "logs.exportCsv": "Export CSV",
   "logs.date": "Date",
@@ -63,5 +68,11 @@
   "general.language": "Language",
   "general.loading": "Loading...",
   "general.error": "Error",
-  "general.success": "Success"
+  "general.success": "Success",
+  "chart.time": "Time (s)",
+  "chart.value": "Value",
+  "chart.position": "Position",
+  "chart.angle": "Angle",
+  "chart.beamAngle": "Beam angle",
+  "footer.team": "WEBTE2 Team"
 }

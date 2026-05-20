@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="sk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WEBTE2 | Pendulum</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <style>
+      .simulation-grid {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .visual-stack {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .form-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      .canvas-container {
+        min-height: 300px;
+      }
+
+      .canvas-container canvas {
+        width: 100%;
+        min-height: 300px;
+      }
+
+      @media (min-width: 992px) {
+        .simulation-grid {
+          grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+          align-items: start;
+        }
+      }
+    </style>
+    <script src="../js/i18n.js" defer></script>
+    <script src="../js/main.js" defer></script>
+    <script src="../js/api.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div data-navbar></div>
+
+      <main class="page-container">
+        <section class="card">
+          <h1 class="section-title" data-i18n="pendulum.title">Inverted Pendulum Simulation</h1>
+
+          <div class="simulation-grid">
+            <article class="panel">
+              <form id="pendulum-form">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="mass-cart" data-i18n="pendulum.cartMass">Cart mass</label>
+                    <input id="mass-cart" name="M" type="number" step="0.01" value="0.5" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="mass-pendulum" data-i18n="pendulum.pendulumMass">Pendulum mass</label>
+                    <input id="mass-pendulum" name="m" type="number" step="0.01" value="0.2" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="friction" data-i18n="pendulum.friction">Friction</label>
+                    <input id="friction" name="b" type="number" step="0.01" value="0.1" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="inertia" data-i18n="pendulum.inertia">Inertia</label>
+                    <input id="inertia" name="I" type="number" step="0.001" value="0.006" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="length" data-i18n="pendulum.length">Length</label>
+                    <input id="length" name="l" type="number" step="0.01" value="0.3" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="target-run-1" data-i18n="pendulum.targetPositionRun1">Target position run 1</label>
+                    <input id="target-run-1" name="r" type="number" step="0.01" value="0.2" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="target-run-2" data-i18n="pendulum.targetPositionRun2">Target position run 2</label>
+                    <input id="target-run-2" name="r2" type="number" step="0.01" value="0.5" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="initial-position" data-i18n="pendulum.initialPosition">Initial position</label>
+                    <input id="initial-position" name="initPozicia" type="number" step="0.01" value="0" />
+                  </div>
+
+                  <div class="form-group">
+                    <label for="initial-angle" data-i18n="pendulum.initialAngle">Initial angle</label>
+                    <input id="initial-angle" name="initUhol" type="number" step="0.01" value="0" />
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button id="run-button" class="btn-primary" type="submit" data-i18n="pendulum.runSimulation">
+                    Run Simulation
+                  </button>
+                  <button id="reset-button" class="btn-secondary" type="button" data-i18n="pendulum.reset">
+                    Reset
+                  </button>
+                </div>
+              </form>
+            </article>
+
+            <div class="visual-stack">
+              <article class="panel">
+                <div class="canvas-container">
+                  <canvas id="pendulum-canvas" width="800" height="420"></canvas>
+                </div>
+              </article>
+
+              <article class="panel">
+                <div class="chart-container">
+                  <canvas id="pendulum-chart"></canvas>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <div id="global-loading" aria-live="polite"></div>
+      </main>
+    </div>
+
+    <script>
+      (function () {
+        var chartInstance = null;
+        var animationFrameId = null;
+        var simulationData = null;
+        var animationState = {
+          currentIndex: 0,
+          startTimestamp: null,
+          currentTime: 0
+        };
+        var gravity = 9.81;
+
+        var currentTimePlugin = {
+          id: "currentTimePlugin",
+          afterDatasetsDraw: function (chart, args, pluginOptions) {
+            if (!simulationData || !simulationData.time.length) {
+              return;
+            }
+
+            var xScale = chart.scales.x;
+            var yScale = chart.scales.y;
+            var x = xScale.getPixelForValue(pluginOptions.currentTime || 0);
+            var context = chart.ctx;
+
+            context.save();
+            context.beginPath();
+            context.strokeStyle = "#0f2d5c";
+            context.lineWidth = 2;
+            context.moveTo(x, yScale.top);
+            context.lineTo(x, yScale.bottom);
+            context.stroke();
+            context.restore();
+          }
+        };
+
+        function getTranslation(key, fallback) {
+          return typeof window.t === "function" ? window.t(key) : fallback;
+        }
+
+        function parseNumber(value) {
+          return Number.parseFloat(value);
+        }
+
+        function getLastValue(values, fallback) {
+          return values && values.length ? values[values.length - 1] : fallback;
+        }
+
+        function collectParams() {
+          var form = document.getElementById("pendulum-form");
+
+          return {
+            M: parseNumber(form.M.value),
+            m: parseNumber(form.m.value),
+            b: parseNumber(form.b.value),
+            I: parseNumber(form.I.value),
+            g: gravity,
+            l: parseNumber(form.l.value),
+            r: parseNumber(form.r.value),
+            r2: parseNumber(form.r2.value),
+            initPozicia: parseNumber(form.initPozicia.value),
+            initUhol: parseNumber(form.initUhol.value)
+          };
+        }
+
+        function combineRuns(run1, run2) {
+          var time1 = Array.isArray(run1.time) ? run1.time : [];
+          var position1 = Array.isArray(run1.position) ? run1.position : [];
+          var angle1 = Array.isArray(run1.angle) ? run1.angle : [];
+          var time2 = Array.isArray(run2.time) ? run2.time : [];
+          var position2 = Array.isArray(run2.position) ? run2.position : [];
+          var angle2 = Array.isArray(run2.angle) ? run2.angle : [];
+          var offset = time1.length ? time1[time1.length - 1] : 0;
+
+          return {
+            time: time1.concat(time2.slice(1).map(function (value) { return value + offset; })),
+            position: position1.concat(position2.slice(1)),
+            angle: angle1.concat(angle2.slice(1))
+          };
+        }
+
+        function stopAnimation() {
+          if (animationFrameId) {
+            window.cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+          }
+        }
+
+        function getInterpolatedState(elapsedTime) {
+          if (!simulationData || !simulationData.time.length) {
+            return {
+              position: 0,
+              angle: 0,
+              time: 0,
+              index: 0
+            };
+          }
+
+          var times = simulationData.time;
+          var positions = simulationData.position;
+          var angles = simulationData.angle;
+          var lastIndex = times.length - 1;
+
+          if (elapsedTime <= times[0]) {
+            return {
+              position: positions[0],
+              angle: angles[0],
+              time: times[0],
+              index: 0
+            };
+          }
+
+          if (elapsedTime >= times[lastIndex]) {
+            return {
+              position: positions[lastIndex],
+              angle: angles[lastIndex],
+              time: times[lastIndex],
+              index: lastIndex
+            };
+          }
+
+          for (var index = 0; index < lastIndex; index += 1) {
+            var currentTime = times[index];
+            var nextTime = times[index + 1];
+
+            if (elapsedTime >= currentTime && elapsedTime <= nextTime) {
+              var progress = (elapsedTime - currentTime) / (nextTime - currentTime || 1);
+
+              return {
+                position: positions[index] + (positions[index + 1] - positions[index]) * progress,
+                angle: angles[index] + (angles[index + 1] - angles[index]) * progress,
+                time: elapsedTime,
+                index: index + 1
+              };
+            }
+          }
+
+          return {
+            position: positions[lastIndex],
+            angle: angles[lastIndex],
+            time: times[lastIndex],
+            index: lastIndex
+          };
+        }
+
+        function drawScene(position, angle, timeValue) {
+          var canvas = document.getElementById("pendulum-canvas");
+          var context = canvas.getContext("2d");
+          var width = canvas.width;
+          var height = canvas.height;
+          var railY = height - 70;
+          var cartWidth = 90;
+          var cartHeight = 42;
+          var cartY = railY - cartHeight;
+          var rodLength = 140;
+          var maxExtent = Math.max(
+            0.6,
+            Math.abs(position),
+            Math.abs(getLastValue(simulationData ? simulationData.position : [], 0)),
+            Math.abs(parseNumber(document.getElementById("target-run-1").value)),
+            Math.abs(parseNumber(document.getElementById("target-run-2").value))
+          );
+          var trackHalfWidth = width * 0.34;
+          var cartCenterX = width / 2 + (position / maxExtent) * trackHalfWidth;
+          var pivotX = cartCenterX;
+          var pivotY = cartY;
+          var bobX = pivotX + Math.sin(angle) * rodLength;
+          var bobY = pivotY - Math.cos(angle) * rodLength;
+
+          context.clearRect(0, 0, width, height);
+          context.fillStyle = "#f8fbff";
+          context.fillRect(0, 0, width, height);
+
+          context.strokeStyle = "#7a879b";
+          context.lineWidth = 6;
+          context.beginPath();
+          context.moveTo(80, railY);
+          context.lineTo(width - 80, railY);
+          context.stroke();
+
+          context.fillStyle = "#1d4a8f";
+          context.fillRect(cartCenterX - cartWidth / 2, cartY, cartWidth, cartHeight);
+
+          context.strokeStyle = "#d64545";
+          context.lineWidth = 5;
+          context.beginPath();
+          context.moveTo(pivotX, pivotY);
+          context.lineTo(bobX, bobY);
+          context.stroke();
+
+          context.fillStyle = "#d64545";
+          context.beginPath();
+          context.arc(bobX, bobY, 14, 0, Math.PI * 2);
+          context.fill();
+
+          context.fillStyle = "#11213d";
+          context.font = "18px Segoe UI";
+          context.fillText(
+            getTranslation("pendulum.currentPosition", "Position") + ": " + position.toFixed(3),
+            24,
+            34
+          );
+          context.fillText(
+            getTranslation("pendulum.currentAngle", "Angle") + ": " + angle.toFixed(3),
+            24,
+            62
+          );
+          context.fillText(getTranslation("chart.time", "Time (s)") + ": " + timeValue.toFixed(2), 24, 90);
+        }
+
+        function createChart() {
+          var context = document.getElementById("pendulum-chart").getContext("2d");
+
+          if (chartInstance) {
+            chartInstance.destroy();
+          }
+
+          chartInstance = new Chart(context, {
+            type: "line",
+            data: {
+              labels: [],
+              datasets: [
+                {
+                  label: getTranslation("chart.position", "Position"),
+                  data: [],
+                  borderColor: "#1d4a8f",
+                  backgroundColor: "rgba(29, 74, 143, 0.12)",
+                  borderWidth: 2,
+                  tension: 0.2,
+                  pointRadius: 0
+                },
+                {
+                  label: getTranslation("chart.angle", "Angle"),
+                  data: [],
+                  borderColor: "#f2994a",
+                  backgroundColor: "rgba(242, 153, 74, 0.12)",
+                  borderWidth: 2,
+                  tension: 0.2,
+                  pointRadius: 0
+                }
+              ]
+            },
+            options: {
+              animation: false,
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: {
+                intersect: false,
+                mode: "index"
+              },
+              plugins: {
+                legend: {
+                  display: true
+                },
+                currentTimePlugin: {
+                  currentTime: 0
+                }
+              },
+              scales: {
+                x: {
+                  type: "linear",
+                  title: {
+                    display: true,
+                    text: getTranslation("chart.time", "Time (s)")
+                  }
+                },
+                y: {
+                  title: {
+                    display: true,
+                    text: getTranslation("chart.value", "Value")
+                  }
+                }
+              }
+            },
+            plugins: [currentTimePlugin]
+          });
+        }
+
+        function updateChart(index, timeValue) {
+          if (!chartInstance || !simulationData) {
+            return;
+          }
+
+          chartInstance.data.labels = simulationData.time.slice(0, index + 1);
+          chartInstance.data.datasets[0].data = simulationData.position
+            .slice(0, index + 1)
+            .map(function (value, dataIndex) {
+              return {
+                x: simulationData.time[dataIndex],
+                y: value
+              };
+            });
+          chartInstance.data.datasets[1].data = simulationData.angle
+            .slice(0, index + 1)
+            .map(function (value, dataIndex) {
+              return {
+                x: simulationData.time[dataIndex],
+                y: value
+              };
+            });
+          chartInstance.options.plugins.currentTimePlugin.currentTime = timeValue;
+          chartInstance.update("none");
+        }
+
+        function renderFrame(timestamp) {
+          if (!simulationData) {
+            return;
+          }
+
+          if (!animationState.startTimestamp) {
+            animationState.startTimestamp = timestamp;
+          }
+
+          var elapsedSeconds = (timestamp - animationState.startTimestamp) / 1000;
+          var state = getInterpolatedState(elapsedSeconds);
+
+          animationState.currentIndex = state.index;
+          animationState.currentTime = state.time;
+
+          drawScene(state.position, state.angle, state.time);
+          updateChart(state.index, state.time);
+
+          if (state.index >= simulationData.time.length - 1) {
+            stopAnimation();
+            if (typeof window.showSuccess === "function") {
+              window.showSuccess(getTranslation("pendulum.complete", "Simulation complete"));
+            }
+            return;
+          }
+
+          animationFrameId = window.requestAnimationFrame(renderFrame);
+        }
+
+        function startAnimation() {
+          stopAnimation();
+          animationState.currentIndex = 0;
+          animationState.currentTime = 0;
+          animationState.startTimestamp = null;
+          createChart();
+          drawScene(simulationData.position[0] || 0, simulationData.angle[0] || 0, simulationData.time[0] || 0);
+          updateChart(0, simulationData.time[0] || 0);
+          animationFrameId = window.requestAnimationFrame(renderFrame);
+        }
+
+        async function runSimulation(event) {
+          event.preventDefault();
+
+          var params = collectParams();
+          var runButton = document.getElementById("run-button");
+
+          runButton.disabled = true;
+          runButton.textContent = getTranslation("pendulum.running", "Running...");
+
+          if (typeof window.showLoading === "function") {
+            window.showLoading("global-loading");
+          }
+
+          try {
+            window.api.trackAnimation("pendulum");
+
+            var run1 = await window.api.runPendulum({
+              M: params.M,
+              m: params.m,
+              b: params.b,
+              I: params.I,
+              g: params.g,
+              l: params.l,
+              r: params.r,
+              initPozicia: params.initPozicia,
+              initUhol: params.initUhol
+            });
+
+            var run2 = await window.api.runPendulum({
+              M: params.M,
+              m: params.m,
+              b: params.b,
+              I: params.I,
+              g: params.g,
+              l: params.l,
+              r: params.r2,
+              initPozicia: getLastValue(run1.position, params.initPozicia),
+              initUhol: getLastValue(run1.angle, params.initUhol)
+            });
+
+            simulationData = combineRuns(run1, run2);
+
+            if (!simulationData.time.length) {
+              throw new Error(getTranslation("general.error", "Error"));
+            }
+
+            startAnimation();
+          } catch (error) {
+            if (typeof window.showError === "function") {
+              window.showError(error.message || getTranslation("general.error", "Error"));
+            }
+          } finally {
+            if (typeof window.hideLoading === "function") {
+              window.hideLoading("global-loading");
+            }
+
+            runButton.disabled = false;
+            runButton.textContent = getTranslation("pendulum.runSimulation", "Run Simulation");
+          }
+        }
+
+        function resetSimulation() {
+          stopAnimation();
+          document.getElementById("pendulum-form").reset();
+          simulationData = null;
+
+          if (chartInstance) {
+            chartInstance.destroy();
+            chartInstance = null;
+          }
+
+          createChart();
+          drawScene(0, 0, 0);
+        }
+
+        document.addEventListener("languageChanged", function () {
+          if (chartInstance) {
+            createChart();
+
+            if (simulationData) {
+              updateChart(animationState.currentIndex, animationState.currentTime);
+            }
+          }
+
+          if (simulationData) {
+            var currentPosition = simulationData.position[animationState.currentIndex] || 0;
+            var currentAngle = simulationData.angle[animationState.currentIndex] || 0;
+            drawScene(currentPosition, currentAngle, animationState.currentTime || 0);
+          } else {
+            drawScene(0, 0, 0);
+          }
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+          createChart();
+          drawScene(0, 0, 0);
+          document.getElementById("pendulum-form").addEventListener("submit", runSimulation);
+          document.getElementById("reset-button").addEventListener("click", resetSimulation);
+        });
+      })();
+    </script>
+  </body>
+</html>

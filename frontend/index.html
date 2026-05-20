@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="sk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WEBTE2</title>
+    <link rel="stylesheet" href="./css/style.css" />
+    <script src="./js/i18n.js" defer></script>
+    <script src="./js/main.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div data-navbar></div>
+
+      <main class="page-container">
+        <section class="hero-grid" aria-labelledby="home-title">
+          <article class="card">
+            <p class="muted" data-i18n="home.subtitle">Bilingual simulations and computation interface</p>
+            <h1 id="home-title" class="section-title" data-i18n="home.title">
+              Control Systems Web Application
+            </h1>
+            <p data-i18n="home.description">
+              Explore control algorithms, run engineering simulations, work with an Octave terminal,
+              and inspect logs and statistics through a responsive bilingual frontend.
+            </p>
+            <div class="section-grid">
+              <a class="btn-primary" href="./pages/compute.html" data-i18n="home.openTerminal">
+                Open Terminal
+              </a>
+              <a class="btn-secondary" href="./pages/pendulum.html" data-i18n="home.runPendulum">
+                Run Pendulum
+              </a>
+              <a class="btn-secondary" href="./pages/ballbeam.html" data-i18n="home.runBallBeam">
+                Run Ball-Beam
+              </a>
+            </div>
+          </article>
+        </section>
+
+        <section class="section-grid" aria-label="Features">
+          <article class="card">
+            <h2 class="card-title" data-i18n="nav.terminal">Terminal</h2>
+            <p class="muted" data-i18n="compute.enterCommand">Enter Octave command</p>
+            <a class="btn-primary" href="./pages/compute.html" data-i18n="home.openTerminal">
+              Open Terminal
+            </a>
+          </article>
+
+          <article class="card">
+            <h2 class="card-title" data-i18n="pendulum.title">Inverted Pendulum Simulation</h2>
+            <p class="muted" data-i18n="pendulum.runSimulation">Run Simulation</p>
+            <a class="btn-secondary" href="./pages/pendulum.html" data-i18n="home.runPendulum">
+              Run Pendulum
+            </a>
+          </article>
+
+          <article class="card">
+            <h2 class="card-title" data-i18n="ballbeam.title">Ball on Beam Simulation</h2>
+            <p class="muted" data-i18n="ballbeam.runSimulation">Run Simulation</p>
+            <a class="btn-secondary" href="./pages/ballbeam.html" data-i18n="home.runBallBeam">
+              Run Ball-Beam
+            </a>
+          </article>
+        </section>
+      </main>
+
+      <footer class="page-container">
+        <div class="card">
+          <p class="muted">
+            <span data-i18n="footer.team">WEBTE2 Team</span>
+            <span> | 2026</span>
+          </p>
+        </div>
+      </footer>
+    </div>
+  </body>
+</html>
