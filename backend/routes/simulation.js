@@ -1,16 +1,31 @@
 const express = require('express');
 
 const auth = require('../middleware/auth');
-const { runSimulation } = require('../services/simulation.service');
+const { runBallBeam, runPendulum } = require('../services/simulation.service');
 
 const router = express.Router();
 
-router.post('/', auth, async (req, res, next) => {
+router.use(auth);
+
+router.post('/pendulum', async (req, res) => {
   try {
-    const simulation = await runSimulation(req.body || {});
-    res.status(201).json(simulation);
+    const result = await runPendulum(req.body || {});
+    return res.json(result);
   } catch (error) {
-    next(error);
+    return res.status(500).json({
+      error: error.message || 'Simulation failed'
+    });
+  }
+});
+
+router.post('/ballbeam', async (req, res) => {
+  try {
+    const result = await runBallBeam(req.body || {});
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({
+      error: error.message || 'Simulation failed'
+    });
   }
 });
 
