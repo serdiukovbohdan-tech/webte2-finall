@@ -4,10 +4,6 @@
 WEBTE2 is a full-stack engineering web application for computer-aided calculations and control-system simulations.  
 It integrates GNU Octave through a custom REST API, visualizes dynamic systems in real time, stores operational data in PostgreSQL, and is deployed with Docker.
 
-## Live Demo
-- App: https://node80.webte.fei.stuba.sk/webte2/
-- API: https://node80.webte.fei.stuba.sk/webte2/api
-
 ## What Was Built
 - Terminal-style Octave command execution with session support.
 - Two interactive simulations:
